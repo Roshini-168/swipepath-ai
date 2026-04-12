@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SwipePath AI — Find Your Career</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#7c3aed" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SwipePath" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- SPLASH SCREEN -->
+<div id="splash" class="splash">
+  <div class="splash-content">
+    <div class="splash-logo">
+      <div class="logo-icon">⚡</div>
+      <h1 class="logo-text">SwipePath<span>AI</span></h1>
+    </div>
+    <p class="splash-tagline">Discover the career that was built for you</p>
+    <div class="splash-loading">
+      <div class="loading-bar"><div class="loading-fill"></div></div>
+      <span>Loading careers...</span>
+    </div>
+  </div>
+  <div class="splash-bg">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="app hidden">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <span class="logo-small">⚡ SwipePath</span>
+    </div>
+    <div class="header-center">
+      <div class="swipe-counter">
+        <span id="swipe-count">0</span>/<span id="total-count">0</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" id="info-btn" title="How it works">?</button>
+    </div>
+  </header>
+
+  <!-- Card Area -->
+  <div class="card-area">
+    <div class="card-stack" id="card-stack">
+      <!-- Cards injected here -->
+    </div>
+
+    <!-- Swipe indicators -->
+    <div class="indicator like-indicator" id="like-indicator">
+      <span>❤️ LIKE</span>
+    </div>
+    <div class="indicator dislike-indicator" id="dislike-indicator">
+      <span>✕ PASS</span>
+    </div>
+    <div class="indicator super-indicator" id="super-indicator">
+      <span>⭐ SUPER</span>
+    </div>
+    <div class="indicator superdown-indicator" id="superdown-indicator">
+      <span>👎 NOPE</span>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="action-bar">
+    <button class="action-btn dislike-btn" id="btn-dislike" title="Pass">
+      <span class="btn-icon">✕</span>
+      <span class="btn-label">Pass</span>
+    </button>
+    <button class="action-btn superdown-btn" id="btn-superdown" title="Definitely Not">
+      <span class="btn-icon">👎</span>
+      <span class="btn-label">Nope</span>
+    </button>
+    <button class="action-btn superlike-btn" id="btn-superlike" title="Super Like">
+      <span class="btn-icon">⭐</span>
+      <span class="btn-label">Dream</span>
+    </button>
+    <button class="action-btn like-btn" id="btn-like" title="Like">
+      <span class="btn-icon">❤️</span>
+      <span class="btn-label">Like</span>
+    </button>
+  </div>
+
+  <!-- Hint text -->
+  <div class="hint-text">Double tap card for Super Like</div>
+</div>
+
+<!-- RESULTS PAGE -->
+<div id="results-page" class="results-page hidden">
+  <div class="results-bg">
+    <div class="blob blob-r1"></div>
+    <div class="blob blob-r2"></div>
+  </div>
+  
+  <div class="results-header">
+    <div class="results-title-block">
+      <div class="ai-badge">✨ AI Matched</div>
+      <h1 class="results-title">Your Career<br><span>Destiny</span></h1>
+      <p class="results-subtitle">Based on your swipes, our AI found your perfect matches</p>
+    </div>
+  </div>
+
+  <div class="results-container" id="results-container">
+    <!-- Results injected here -->
+  </div>
+
+  <div class="results-actions">
+    <button class="restart-btn" id="restart-btn">
+      <span>🔄</span> Discover Again
+    </button>
+    <p class="results-footer">Powered by SwipePath AI · Made with ❤️</p>
+  </div>
+</div>
+
+<!-- Info Modal -->
+<div class="modal-overlay hidden" id="info-modal">
+  <div class="modal">
+    <button class="modal-close" id="modal-close">✕</button>
+    <h2>How it Works</h2>
+    <div class="modal-steps">
+      <div class="modal-step">
+        <span class="step-icon">👆</span>
+        <div><strong>Swipe Right</strong><br>You like this career</div>
+      </div>
+      <div class="modal-step">
+        <span class="step-icon">👈</span>
+        <div><strong>Swipe Left</strong><br>Not interested</div>
+      </div>
+      <div class="modal-step">
+        <span class="step-icon">⭐</span>
+        <div><strong>Double Tap / Up</strong><br>This is your dream career!</div>
+      </div>
+      <div class="modal-step">
+        <span class="step-icon">👎</span>
+        <div><strong>Swipe Down</strong><br>Definitely not for you</div>
+      </div>
+    </div>
+    <p class="modal-note">After 5 swipes, our AI starts learning your preferences and shows smarter recommendations.</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
