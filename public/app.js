@@ -104,14 +104,15 @@ function handleSignUp() {
   startOnboarding();
 }
 
-function handleGoogleAuth() {
-  // Simulate Google auth with a demo account
-  const name = 'Demo User';
-  const email = 'demo@swipepath.ai';
-  currentUser = { email, name, isGoogle: true };
+function handleGuestLogin() {
+  const name = 'Guest User';
+  const email = 'guest@swipepath.ai';
+
+  currentUser = { email, name, isGuest: true };
   localStorage.setItem('swipepath_user', JSON.stringify(currentUser));
 
   const existing = localStorage.getItem('swipepath_profile_' + email);
+
   if (existing) {
     userProfile = JSON.parse(existing);
     localStorage.setItem('swipepath_profile', JSON.stringify(userProfile));
@@ -124,7 +125,6 @@ function handleGoogleAuth() {
     startOnboarding();
   }
 }
-
 function handleSignOut() {
   localStorage.removeItem('swipepath_user');
   currentUser = null;
