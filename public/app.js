@@ -1,95 +1,407 @@
 // ==========================================
-//  SwipePath AI — Main App Logic
+//  SwipePath AI — Complete App v2
 // ==========================================
 
-const API_BASE = '';
-
-// State
+// ── STATE ──
+let currentUser = null;
+let userProfile = {};
 let careers = [];
 let cardQueue = [];
 let swipeHistory = [];
-let currentIndex = 0;
+let quizHistory = [];
 let totalCards = 0;
+let onboardingStep = 1;
+let onboardingAnswers = { hobbies: [] };
 let isDragging = false;
-let startX = 0, startY = 0;
-let currentX = 0, currentY = 0;
+let startX = 0, startY = 0, currentX = 0, currentY = 0;
 let lastTap = 0;
 
-// DOM refs
+// ── DOM ──
 const splash = document.getElementById('splash');
-const app = document.getElementById('app');
-const resultsPage = document.getElementById('results-page');
-const cardStack = document.getElementById('card-stack');
-const swipeCountEl = document.getElementById('swipe-count');
-const totalCountEl = document.getElementById('total-count');
-const resultsContainer = document.getElementById('results-container');
-
-const likeIndicator = document.getElementById('like-indicator');
-const dislikeIndicator = document.getElementById('dislike-indicator');
-const superIndicator = document.getElementById('super-indicator');
-const superdownIndicator = document.getElementById('superdown-indicator');
+const authScreen = document.getElementById('auth-screen');
+const onboardingScreen = document.getElementById('onboarding-screen');
+const mainApp = document.getElementById('main-app');
 
 // ==========================================
 //  INIT
 // ==========================================
-async function init() {
+window.addEventListener('load', async () => {
+  // Load careers
   try {
-    const res = await fetch(`${API_BASE}/api/careers`);
+    const res = await fetch('/api/careers');
     careers = await res.json();
-    
-    // Shuffle for randomness
-    careers = shuffleArray([...careers]);
-    cardQueue = [...careers];
-    totalCards = careers.length;
-    totalCountEl.textContent = totalCards;
+  } catch {
+    careers = getFallbackCareers();
+  }
 
-    // Wait for splash animation
-    setTimeout(() => {
-      splash.style.opacity = '0';
-      splash.style.transition = 'opacity 0.5s ease';
-      setTimeout(() => {
-        splash.classList.add('hidden');
-        app.classList.remove('hidden');
-        renderCards();
-      }, 500);
-    }, 2200);
+  // Check saved session
+  const saved = localStorage.getItem('swipepath_user');
+  if (saved) {
+    currentUser = JSON.parse(saved);
+    userProfile = JSON.parse(localStorage.getItem('swipepath_profile') || '{}');
+    quizHistory = JSON.parse(localStorage.getItem('swipepath_history') || '[]');
+  }
 
-  } catch (err) {
-    console.error('Failed to load careers:', err);
-    // Fallback: show app anyway
+  setTimeout(() => {
+    splash.style.opacity = '0';
+    splash.style.transition = 'opacity 0.5s ease';
     setTimeout(() => {
       splash.classList.add('hidden');
-      app.classList.remove('hidden');
-      cardStack.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state-icon">⚠️</div>
-          <h3>Could not connect</h3>
-          <p>Make sure the server is running</p>
-        </div>`;
-    }, 2200);
+      if (currentUser) {
+        showMainApp();
+      } else {
+        authScreen.classList.remove('hidden');
+      }
+    }, 500);
+  }, 2400);
+});
+
+// ==========================================
+//  AUTH
+// ==========================================
+function switchAuthTab(tab) {
+  document.getElementById('tab-signin').classList.toggle('active', tab === 'signin');
+  document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+  document.getElementById('signin-form').classList.toggle('hidden', tab !== 'signin');
+  document.getElementById('signup-form').classList.toggle('hidden', tab !== 'signup');
+}
+
+function handleSignIn() {
+  const email = document.getElementById('signin-email').value.trim();
+  const pass = document.getElementById('signin-password').value;
+  if (!email || !pass) return showToast('Please fill all fields');
+
+  // Check if user exists in localStorage
+  const existing = localStorage.getItem('swipepath_user_' + email);
+  if (!existing) return showToast('Account not found — please sign up');
+
+  const stored = JSON.parse(existing);
+  if (stored.password !== pass) return showToast('Incorrect password');
+
+  currentUser = { email, name: stored.name };
+  localStorage.setItem('swipepath_user', JSON.stringify(currentUser));
+  userProfile = JSON.parse(localStorage.getItem('swipepath_profile_' + email) || '{}');
+  localStorage.setItem('swipepath_profile', JSON.stringify(userProfile));
+  quizHistory = JSON.parse(localStorage.getItem('swipepath_history_' + email) || '[]');
+  localStorage.setItem('swipepath_history', JSON.stringify(quizHistory));
+
+  authScreen.classList.add('hidden');
+  showMainApp();
+}
+
+function handleSignUp() {
+  const name = document.getElementById('signup-name').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const pass = document.getElementById('signup-password').value;
+  if (!name || !email || !pass) return showToast('Please fill all fields');
+  if (pass.length < 6) return showToast('Password must be at least 6 characters');
+
+  currentUser = { email, name };
+  localStorage.setItem('swipepath_user_' + email, JSON.stringify({ name, password: pass }));
+  localStorage.setItem('swipepath_user', JSON.stringify(currentUser));
+
+  authScreen.classList.add('hidden');
+  startOnboarding();
+}
+
+function handleGoogleAuth() {
+  // Simulate Google auth with a demo account
+  const name = 'Demo User';
+  const email = 'demo@swipepath.ai';
+  currentUser = { email, name, isGoogle: true };
+  localStorage.setItem('swipepath_user', JSON.stringify(currentUser));
+
+  const existing = localStorage.getItem('swipepath_profile_' + email);
+  if (existing) {
+    userProfile = JSON.parse(existing);
+    localStorage.setItem('swipepath_profile', JSON.stringify(userProfile));
+    quizHistory = JSON.parse(localStorage.getItem('swipepath_history_' + email) || '[]');
+    localStorage.setItem('swipepath_history', JSON.stringify(quizHistory));
+    authScreen.classList.add('hidden');
+    showMainApp();
+  } else {
+    authScreen.classList.add('hidden');
+    startOnboarding();
   }
+}
+
+function handleSignOut() {
+  localStorage.removeItem('swipepath_user');
+  currentUser = null;
+  userProfile = {};
+  quizHistory = [];
+  mainApp.classList.add('hidden');
+  authScreen.classList.remove('hidden');
+  switchAuthTab('signin');
+  showToast('Signed out successfully');
+}
+
+// ==========================================
+//  ONBOARDING
+// ==========================================
+function startOnboarding() {
+  onboardingStep = 1;
+  onboardingAnswers = { hobbies: [] };
+  onboardingScreen.classList.remove('hidden');
+  updateOnboardingUI();
+}
+
+function selectOption(btn, field, value) {
+  // Deselect siblings
+  btn.closest('.options-grid').querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  onboardingAnswers[field] = value;
+  document.getElementById('onboarding-next').disabled = false;
+}
+
+function toggleMulti(btn, field, value) {
+  const max = 3;
+  if (btn.classList.contains('selected')) {
+    btn.classList.remove('selected');
+    onboardingAnswers[field] = (onboardingAnswers[field] || []).filter(v => v !== value);
+  } else {
+    const current = onboardingAnswers[field] || [];
+    if (current.length >= max) return showToast('Pick up to 3 interests');
+    btn.classList.add('selected');
+    onboardingAnswers[field] = [...current, value];
+  }
+  document.getElementById('onboarding-next').disabled = (onboardingAnswers[field] || []).length === 0;
+}
+
+function onboardingNext() {
+  if (onboardingStep < 5) {
+    onboardingStep++;
+    updateOnboardingUI();
+  } else {
+    finishOnboarding();
+  }
+}
+
+function onboardingBack() {
+  if (onboardingStep > 1) {
+    onboardingStep--;
+    updateOnboardingUI();
+  }
+}
+
+function updateOnboardingUI() {
+  // Show correct slide
+  document.querySelectorAll('.onboarding-slide').forEach(s => s.classList.remove('active'));
+  document.querySelector(`[data-step="${onboardingStep}"]`).classList.add('active');
+
+  // Progress bar
+  document.getElementById('onboarding-progress').style.width = ((onboardingStep / 5) * 100) + '%';
+  document.getElementById('onboarding-step-label').textContent = `${onboardingStep} of 5`;
+
+  // Back button
+  document.getElementById('onboarding-back').style.visibility = onboardingStep > 1 ? 'visible' : 'hidden';
+
+  // Next button text
+  const nextBtn = document.getElementById('onboarding-next');
+  nextBtn.textContent = onboardingStep === 5 ? "Let's Start! 🚀" : 'Next →';
+
+  // Check if current step already has answer
+  const stepFields = ['age', 'gender', 'location', 'hobbies', 'education'];
+  const field = stepFields[onboardingStep - 1];
+  const hasAnswer = field === 'hobbies'
+    ? (onboardingAnswers.hobbies || []).length > 0
+    : !!onboardingAnswers[field];
+  nextBtn.disabled = !hasAnswer;
+}
+
+function finishOnboarding() {
+  userProfile = { ...onboardingAnswers, name: currentUser.name, email: currentUser.email };
+  localStorage.setItem('swipepath_profile', JSON.stringify(userProfile));
+  localStorage.setItem('swipepath_profile_' + currentUser.email, JSON.stringify(userProfile));
+  onboardingScreen.classList.add('hidden');
+  showMainApp();
+}
+
+// ==========================================
+//  MAIN APP
+// ==========================================
+function showMainApp() {
+  mainApp.classList.remove('hidden');
+  updateDashboard();
+  renderSpotlight();
+
+  // Show floating quiz notification after 2s
+  setTimeout(() => {
+    const notif = document.getElementById('quiz-notification');
+    if (notif) notif.style.display = 'flex';
+  }, 2000);
+}
+
+function updateDashboard() {
+  if (!currentUser) return;
+  const name = currentUser.name || 'Explorer';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning 👋' : hour < 17 ? 'Good afternoon 👋' : 'Good evening 👋';
+
+  document.getElementById('dash-greeting').textContent = greeting;
+  document.getElementById('dash-name').textContent = name;
+  document.getElementById('dash-avatar').textContent = name.charAt(0).toUpperCase();
+
+  // Stats
+  document.getElementById('stat-quizzes').textContent = quizHistory.length;
+  const totalMatches = quizHistory.reduce((a, q) => a + (q.results ? q.results.length : 0), 0);
+  document.getElementById('stat-matches').textContent = totalMatches;
+  document.getElementById('stat-streak').textContent = Math.min(quizHistory.length, 7) + '🔥';
+
+  // Past matches
+  if (quizHistory.length > 0) {
+    const latest = quizHistory[quizHistory.length - 1];
+    const matchesEl = document.getElementById('past-matches');
+    matchesEl.innerHTML = (latest.results || []).slice(0, 3).map(r => `
+      <div class="match-chip">
+        <img class="match-chip-img" src="${r.imageUrl}" onerror="this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&q=60'" />
+        <div class="match-chip-info">
+          <div class="match-chip-title">${r.title}</div>
+          <div class="match-chip-sub">${r.cluster} · ${r.avgSalary || 'Competitive'}</div>
+        </div>
+        <div class="match-chip-pct">${r.matchPct || '—'}%</div>
+      </div>
+    `).join('');
+
+    // Show results nav button
+    document.getElementById('nav-results').style.display = 'flex';
+  }
+
+  // Profile page
+  updateProfilePage();
+  updateHistoryPage();
+}
+
+function updateProfilePage() {
+  if (!currentUser) return;
+  const name = currentUser.name || 'Explorer';
+  document.getElementById('profile-avatar-big').textContent = name.charAt(0).toUpperCase();
+  document.getElementById('profile-name-big').textContent = name;
+  document.getElementById('profile-email-big').textContent = currentUser.email || '';
+
+  const grid = document.getElementById('profile-info-grid');
+  const items = [
+    { label: 'Age Group', value: userProfile.age || '—' },
+    { label: 'Gender', value: userProfile.gender || '—' },
+    { label: 'Location', value: userProfile.location || '—' },
+    { label: 'Education', value: userProfile.education || '—' },
+    { label: 'Quizzes Taken', value: quizHistory.length },
+    { label: 'Interests', value: (userProfile.hobbies || []).join(', ') || '—' },
+  ];
+  grid.innerHTML = items.map(i => `
+    <div class="profile-info-item">
+      <div class="profile-info-label">${i.label}</div>
+      <div class="profile-info-value">${i.value}</div>
+    </div>
+  `).join('');
+}
+
+function updateHistoryPage() {
+  const list = document.getElementById('history-list');
+  if (quizHistory.length === 0) {
+    list.innerHTML = `<div class="empty-matches" style="margin:2rem 1.5rem"><div style="font-size:2rem">📋</div><p>No quiz history yet</p></div>`;
+    return;
+  }
+  list.innerHTML = [...quizHistory].reverse().map((q, i) => `
+    <div class="history-item">
+      <div class="history-date">${new Date(q.date).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</div>
+      <div class="history-top">Top Match: ${q.results && q.results[0] ? q.results[0].title : 'N/A'}</div>
+      <div class="history-chips">
+        ${(q.results || []).slice(0,3).map(r => `<span class="history-chip">${r.title}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderSpotlight() {
+  const shuffled = [...careers].sort(() => Math.random() - 0.5).slice(0, 6);
+  const el = document.getElementById('spotlight-scroll');
+  el.innerHTML = shuffled.map(c => `
+    <div class="spotlight-card" onclick="showToast('Take the quiz to explore ${c.title}!')">
+      <img src="${c.imageUrl}" onerror="this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=300&q=60'" />
+      <div class="spotlight-card-overlay"></div>
+      <div class="spotlight-card-name">
+        <div class="spotlight-card-cluster">${c.cluster}</div>
+        ${c.title}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ==========================================
+//  TAB NAVIGATION
+// ==========================================
+function switchTab(tab) {
+  // Hide all tabs
+  document.querySelectorAll('.tab-content').forEach(t => {
+    t.classList.remove('active');
+    t.classList.add('hidden');
+  });
+
+  // Show target
+  const target = document.getElementById('tab-' + tab);
+  if (target) {
+    target.classList.remove('hidden');
+    target.classList.add('active');
+  }
+
+  // Update nav
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const navBtn = document.getElementById('nav-' + tab);
+  if (navBtn) navBtn.classList.add('active');
+
+  // Hide quiz notification when on quiz tab
+  const notif = document.getElementById('quiz-notification');
+  if (notif) notif.style.display = tab === 'quiz' ? 'none' : 'flex';
+}
+
+function goToDashboard() {
+  switchTab('dashboard');
+  updateDashboard();
+}
+
+// ==========================================
+//  QUIZ FLOW
+// ==========================================
+function startQuizFlow() {
+  // Show instructions first
+  document.getElementById('instructions-modal').classList.remove('hidden');
+}
+
+function closeInstructions() {
+  document.getElementById('instructions-modal').classList.add('hidden');
+  beginQuiz();
+}
+
+function beginQuiz() {
+  // Reset state
+  swipeHistory = [];
+  const shuffled = [...careers].sort(() => Math.random() - 0.5);
+  cardQueue = [...shuffled];
+  totalCards = cardQueue.length;
+
+  document.getElementById('swipe-count').textContent = '0';
+  document.getElementById('total-count').textContent = totalCards;
+
+  // Hide notification
+  const notif = document.getElementById('quiz-notification');
+  if (notif) notif.style.display = 'none';
+
+  switchTab('quiz');
+  renderCards();
 }
 
 // ==========================================
 //  CARD RENDERING
 // ==========================================
 function renderCards() {
+  const cardStack = document.getElementById('card-stack');
   cardStack.innerHTML = '';
-  
-  if (cardQueue.length === 0) {
-    showResults();
-    return;
-  }
+  if (cardQueue.length === 0) { showResults(); return; }
 
-  // Render top 3 cards
-  const visibleCards = cardQueue.slice(0, 3);
-  
-  visibleCards.forEach((career, index) => {
-    const card = createCard(career, index);
-    cardStack.appendChild(card);
+  cardQueue.slice(0, 3).forEach((career, i) => {
+    cardStack.appendChild(createCard(career, i));
   });
-
-  // Attach drag listeners to top card
   attachDragListeners();
 }
 
@@ -98,247 +410,163 @@ function createCard(career, stackIndex) {
   card.className = `swipe-card card-${stackIndex + 1}`;
   card.dataset.id = career._id;
 
-  const tagHTML = career.tags.slice(0, 4).map(t => 
-    `<span class="card-tag">${t}</span>`
-  ).join('');
-
+  const tags = career.tags.slice(0, 4).map(t => `<span class="card-tag">${t}</span>`).join('');
   card.innerHTML = `
-    <img class="card-image" src="${career.imageUrl}" alt="${career.title}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80'" />
+    <img class="card-image" src="${career.imageUrl}" loading="lazy"
+         onerror="this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80'" />
     <div class="card-gradient"></div>
-    <div class="card-like-glow glow-like" id="glow-like-${career._id}"></div>
-    <div class="card-like-glow glow-dislike" id="glow-dislike-${career._id}"></div>
+    <div class="card-like-glow glow-like"></div>
+    <div class="card-like-glow glow-dislike"></div>
     <div class="card-content">
       <div class="card-cluster">${career.cluster}</div>
       <h2 class="card-title">${career.title}</h2>
       <p class="card-description">${career.description}</p>
-      <div class="card-tags">${tagHTML}</div>
-      <div class="card-salary">Avg Salary: <strong>${career.avgSalary}</strong></div>
-    </div>
-  `;
+      <div class="card-tags">${tags}</div>
+      <div class="card-salary">Avg: <strong>${career.avgSalary || 'Competitive'}</strong></div>
+    </div>`;
 
-  if (stackIndex === 0) {
-    card.style.animation = 'cardAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
-  }
-
+  if (stackIndex === 0) card.style.animation = 'cardAppear 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards';
   return card;
 }
 
 // ==========================================
-//  DRAG / SWIPE LOGIC
+//  DRAG/SWIPE
 // ==========================================
 function attachDragListeners() {
-  const topCard = cardStack.querySelector('.card-1');
-  if (!topCard) return;
+  const cardStack = document.getElementById('card-stack');
+  const top = cardStack.querySelector('.card-1');
+  if (!top) return;
 
-  // Touch events
-  topCard.addEventListener('touchstart', onDragStart, { passive: true });
-  topCard.addEventListener('touchmove', onDragMove, { passive: false });
-  topCard.addEventListener('touchend', onDragEnd);
-
-  // Mouse events
-  topCard.addEventListener('mousedown', onDragStart);
+  top.addEventListener('touchstart', onDragStart, { passive: true });
+  top.addEventListener('touchmove', onDragMove, { passive: false });
+  top.addEventListener('touchend', onDragEnd);
+  top.addEventListener('mousedown', onDragStart);
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('mouseup', onDragEnd);
-
-  // Double tap / click
-  topCard.addEventListener('touchend', handleDoubleTap);
-  topCard.addEventListener('dblclick', handleDoubleClick);
+  top.addEventListener('touchend', handleDoubleTap);
+  top.addEventListener('dblclick', () => swipeCard('superlike'));
 }
 
 function onDragStart(e) {
   isDragging = true;
-  const point = e.touches ? e.touches[0] : e;
-  startX = point.clientX;
-  startY = point.clientY;
-  currentX = 0;
-  currentY = 0;
-
-  const topCard = cardStack.querySelector('.card-1');
-  if (topCard) topCard.style.transition = 'none';
+  const p = e.touches ? e.touches[0] : e;
+  startX = p.clientX; startY = p.clientY;
+  currentX = 0; currentY = 0;
+  const top = document.getElementById('card-stack').querySelector('.card-1');
+  if (top) top.style.transition = 'none';
 }
 
 function onDragMove(e) {
   if (!isDragging) return;
   if (e.cancelable) e.preventDefault();
+  const p = e.touches ? e.touches[0] : e;
+  currentX = p.clientX - startX;
+  currentY = p.clientY - startY;
+  const top = document.getElementById('card-stack').querySelector('.card-1');
+  if (!top) return;
 
-  const point = e.touches ? e.touches[0] : e;
-  currentX = point.clientX - startX;
-  currentY = point.clientY - startY;
-
-  const topCard = cardStack.querySelector('.card-1');
-  if (!topCard) return;
-
-  const rotate = currentX * 0.08;
-  topCard.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rotate}deg)`;
-
-  // Show indicators
-  const threshold = 60;
-  const absX = Math.abs(currentX);
-  const absY = Math.abs(currentY);
-
-  // Glow effects
-  const glowLike = topCard.querySelector('.card-like-glow.glow-like');
-  const glowDislike = topCard.querySelector('.card-like-glow.glow-dislike');
-
+  top.style.transform = `translate(${currentX}px,${currentY}px) rotate(${currentX * 0.08}deg)`;
   resetIndicators();
 
+  const absX = Math.abs(currentX), absY = Math.abs(currentY);
+  const thresh = 60;
+  const glowL = top.querySelector('.glow-like');
+  const glowD = top.querySelector('.glow-dislike');
+
   if (absY > absX * 1.5) {
-    if (currentY < -threshold) {
-      superIndicator.style.opacity = Math.min(1, ((-currentY - threshold) / 80));
-    } else if (currentY > threshold) {
-      superdownIndicator.style.opacity = Math.min(1, ((currentY - threshold) / 80));
-    }
-  } else if (currentX > threshold) {
-    likeIndicator.style.opacity = Math.min(1, ((currentX - threshold) / 80));
-    if (glowLike) glowLike.style.opacity = Math.min(0.6, ((currentX - threshold) / 120));
-  } else if (currentX < -threshold) {
-    dislikeIndicator.style.opacity = Math.min(1, ((-currentX - threshold) / 80));
-    if (glowDislike) glowDislike.style.opacity = Math.min(0.6, ((-currentX - threshold) / 120));
+    if (currentY < -thresh) document.getElementById('super-indicator').style.opacity = Math.min(1, (-currentY - thresh) / 80);
+    else if (currentY > thresh) document.getElementById('superdown-indicator').style.opacity = Math.min(1, (currentY - thresh) / 80);
+  } else if (currentX > thresh) {
+    document.getElementById('like-indicator').style.opacity = Math.min(1, (currentX - thresh) / 80);
+    if (glowL) glowL.style.opacity = Math.min(0.6, (currentX - thresh) / 120);
+  } else if (currentX < -thresh) {
+    document.getElementById('dislike-indicator').style.opacity = Math.min(1, (-currentX - thresh) / 80);
+    if (glowD) glowD.style.opacity = Math.min(0.6, (-currentX - thresh) / 120);
   }
 }
 
-function onDragEnd(e) {
+function onDragEnd() {
   if (!isDragging) return;
   isDragging = false;
-
   document.removeEventListener('mousemove', onDragMove);
   document.removeEventListener('mouseup', onDragEnd);
 
-  const topCard = cardStack.querySelector('.card-1');
-  if (!topCard) return;
-
-  topCard.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+  const top = document.getElementById('card-stack').querySelector('.card-1');
+  if (!top) return;
+  top.style.transition = 'transform 0.3s ease';
   resetIndicators();
 
-  const threshold = 80;
-  const absX = Math.abs(currentX);
-  const absY = Math.abs(currentY);
-
+  const absX = Math.abs(currentX), absY = Math.abs(currentY), thresh = 80;
   if (absY > absX * 1.5) {
-    if (currentY < -threshold) {
-      swipeCard('superlike');
-      return;
-    } else if (currentY > threshold) {
-      swipeCard('superDislike');
-      return;
-    }
+    if (currentY < -thresh) { swipeCard('superlike'); return; }
+    if (currentY > thresh) { swipeCard('superDislike'); return; }
   } else {
-    if (currentX > threshold) {
-      swipeCard('like');
-      return;
-    } else if (currentX < -threshold) {
-      swipeCard('dislike');
-      return;
-    }
+    if (currentX > thresh) { swipeCard('like'); return; }
+    if (currentX < -thresh) { swipeCard('dislike'); return; }
   }
-
-  // Snap back
-  topCard.style.transform = 'translate(0, 0) rotate(0deg)';
+  top.style.transform = 'translate(0,0) rotate(0deg)';
 }
 
-function handleDoubleTap(e) {
+function handleDoubleTap() {
   const now = Date.now();
-  if (now - lastTap < 300) {
-    swipeCard('superlike');
-  }
+  if (now - lastTap < 300) swipeCard('superlike');
   lastTap = now;
 }
 
-function handleDoubleClick() {
-  swipeCard('superlike');
+function resetIndicators() {
+  ['like-indicator','dislike-indicator','super-indicator','superdown-indicator'].forEach(id => {
+    document.getElementById(id).style.opacity = '0';
+  });
 }
 
 // ==========================================
-//  SWIPE ACTIONS
+//  SWIPE ACTION
 // ==========================================
 function swipeCard(action) {
-  const topCard = cardStack.querySelector('.card-1');
-  if (!topCard) return;
+  const cardStack = document.getElementById('card-stack');
+  const top = cardStack.querySelector('.card-1');
+  if (!top) return;
 
-  const careerId = topCard.dataset.id;
-  const career = cardQueue[0];
+  const careerId = top.dataset.id;
+  const clone = top.cloneNode(true);
+  top.parentNode.replaceChild(clone, top);
+  clone.style.transition = 'none';
 
-  // Remove drag listeners
-  const newCard = topCard.cloneNode(true);
-  topCard.parentNode.replaceChild(newCard, topCard);
+  const map = { like:'card-fly-right', dislike:'card-fly-left', superlike:'card-fly-up', superDislike:'card-fly-down' };
+  const indMap = { like:'like-indicator', dislike:'dislike-indicator', superlike:'super-indicator', superDislike:'superdown-indicator' };
 
-  // Animate out
-  newCard.style.transition = 'none';
-  
-  let animClass = '';
-  let indicatorEl = null;
+  const ind = document.getElementById(indMap[action]);
+  if (ind) { ind.style.opacity = '1'; setTimeout(() => { ind.style.opacity = '0'; }, 400); }
 
-  switch (action) {
-    case 'like':
-      animClass = 'card-fly-right';
-      indicatorEl = likeIndicator;
-      break;
-    case 'dislike':
-      animClass = 'card-fly-left';
-      indicatorEl = dislikeIndicator;
-      break;
-    case 'superlike':
-      animClass = 'card-fly-up';
-      indicatorEl = superIndicator;
-      break;
-    case 'superDislike':
-      animClass = 'card-fly-down';
-      indicatorEl = superdownIndicator;
-      break;
-  }
-
-  // Flash indicator
-  if (indicatorEl) {
-    indicatorEl.style.opacity = '1';
-    setTimeout(() => { indicatorEl.style.opacity = '0'; }, 400);
-  }
-
-  newCard.classList.add(animClass);
-  
-  // Record swipe
+  clone.classList.add(map[action]);
   swipeHistory.push({ careerId, action });
   cardQueue.shift();
-  
-  // Update counter
+
   const swiped = totalCards - cardQueue.length;
-  swipeCountEl.textContent = swiped;
+  document.getElementById('swipe-count').textContent = swiped;
 
-  // Remove card and re-render after animation
   setTimeout(() => {
-    newCard.remove();
-
+    clone.remove();
     if (cardQueue.length === 0) {
       showResults();
     } else {
-      // Promote remaining cards
       updateCardStack();
-      // Add new card at bottom if available
       if (cardQueue.length >= 3) {
-        const newCardEl = createCard(cardQueue[2], 2);
-        cardStack.appendChild(newCardEl);
+        cardStack.appendChild(createCard(cardQueue[2], 2));
       }
-      // Re-attach to new top card
       attachDragListeners();
     }
   }, 480);
 }
 
 function updateCardStack() {
-  const cards = cardStack.querySelectorAll('.swipe-card');
-  cards.forEach((card, i) => {
-    card.className = `swipe-card card-${i + 1}`;
+  document.getElementById('card-stack').querySelectorAll('.swipe-card').forEach((c, i) => {
+    c.className = `swipe-card card-${i + 1}`;
   });
 }
 
-function resetIndicators() {
-  likeIndicator.style.opacity = '0';
-  dislikeIndicator.style.opacity = '0';
-  superIndicator.style.opacity = '0';
-  superdownIndicator.style.opacity = '0';
-}
-
 // ==========================================
-//  BUTTON ACTIONS
+//  BUTTON LISTENERS
 // ==========================================
 document.getElementById('btn-like').addEventListener('click', () => swipeCard('like'));
 document.getElementById('btn-dislike').addEventListener('click', () => swipeCard('dislike'));
@@ -348,59 +576,58 @@ document.getElementById('btn-superdown').addEventListener('click', () => swipeCa
 document.getElementById('info-btn').addEventListener('click', () => {
   document.getElementById('info-modal').classList.remove('hidden');
 });
-
 document.getElementById('modal-close').addEventListener('click', () => {
   document.getElementById('info-modal').classList.add('hidden');
 });
-
-document.getElementById('info-modal').addEventListener('click', (e) => {
-  if (e.target === document.getElementById('info-modal')) {
-    document.getElementById('info-modal').classList.add('hidden');
-  }
+document.getElementById('info-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('info-modal')) document.getElementById('info-modal').classList.add('hidden');
 });
 
 // ==========================================
-//  RESULTS PAGE
+//  RESULTS
 // ==========================================
 function showResults() {
-  app.classList.add('hidden');
-  resultsPage.classList.remove('hidden');
+  switchTab('results');
+  document.getElementById('results-container').innerHTML = `
+    <div style="text-align:center;padding:2rem;color:var(--text-muted)">
+      <div style="font-size:2.5rem;margin-bottom:0.5rem">🤖</div>
+      <div>AI is analyzing your swipes...</div>
+    </div>`;
 
-  resultsContainer.innerHTML = `
-    <div style="text-align:center; padding: 2rem; color: var(--text-muted);">
-      <div style="font-size: 2rem; margin-bottom: 0.5rem;">🤖</div>
-      <div>Analyzing your preferences...</div>
-    </div>
-  `;
-
-  // Always compute client-side — avoids server-state issues entirely
   setTimeout(() => {
-    const recs = computeLocalRecommendations();
+    const recs = computeRecommendations();
     renderResults(recs);
-  }, 900);
+
+    // Save to history
+    const entry = {
+      date: new Date().toISOString(),
+      swipeCount: swipeHistory.length,
+      results: recs.map(r => ({ ...r, matchPct: computeMatchPct(r) }))
+    };
+    quizHistory.push(entry);
+    localStorage.setItem('swipepath_history', JSON.stringify(quizHistory));
+    localStorage.setItem('swipepath_history_' + (currentUser?.email || 'guest'), JSON.stringify(quizHistory));
+
+    // Show results nav
+    document.getElementById('nav-results').style.display = 'flex';
+    updateDashboard();
+  }, 1000);
 }
 
-function computeLocalRecommendations() {
-  const likedTags = {};
-  const likedClusters = {};
-  
+function computeRecommendations() {
+  const likedTags = {}, likedClusters = {};
   swipeHistory.forEach(({ careerId, action }) => {
-    const career = careers.find(c => c._id === careerId);
-    if (!career) return;
+    const c = careers.find(x => x._id === careerId);
+    if (!c) return;
     const w = action === 'superlike' ? 3 : action === 'like' ? 1 : action === 'superDislike' ? -3 : -1;
-    career.tags.forEach(t => { likedTags[t] = (likedTags[t] || 0) + w; });
-    likedClusters[career.cluster] = (likedClusters[career.cluster] || 0) + w;
+    c.tags.forEach(t => { likedTags[t] = (likedTags[t] || 0) + w; });
+    likedClusters[c.cluster] = (likedClusters[c.cluster] || 0) + w;
   });
 
-  // Score ALL careers — don't filter out swiped ones
-  // (user may have swiped all cards, so nothing would remain otherwise)
-  const superDislikedIds = swipeHistory
-    .filter(s => s.action === 'superDislike')
-    .map(s => s.careerId);
-
+  const superDislikedIds = swipeHistory.filter(s => s.action === 'superDislike').map(s => s.careerId);
   const pool = superDislikedIds.length < careers.length
     ? careers.filter(c => !superDislikedIds.includes(c._id))
-    : careers; // fallback: if everything was super-disliked, use all
+    : careers;
 
   const scored = pool
     .map(c => {
@@ -412,14 +639,11 @@ function computeLocalRecommendations() {
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
-  // Nuclear fallback: should never be empty
   return scored.length > 0 ? scored : careers.slice(0, 3);
 }
 
-function computeMatchScore(career) {
-  const likedTags = {};
-  const likedClusters = {};
-  
+function computeMatchPct(career) {
+  const likedTags = {}, likedClusters = {};
   swipeHistory.forEach(({ careerId, action }) => {
     const c = careers.find(x => x._id === careerId);
     if (!c) return;
@@ -427,176 +651,142 @@ function computeMatchScore(career) {
     c.tags.forEach(t => { likedTags[t] = (likedTags[t] || 0) + w; });
     likedClusters[c.cluster] = (likedClusters[c.cluster] || 0) + w;
   });
-
-  let score = 0;
-  let maxScore = 0;
-
-  career.tags.forEach(t => {
-    const tagMax = Math.max(...Object.values(likedTags).filter(v => v > 0), 1);
-    maxScore += tagMax;
-    score += Math.max(0, likedTags[t] || 0);
-  });
-
-  const clusterMax = Math.max(...Object.values(likedClusters).filter(v => v > 0), 1);
-  maxScore += clusterMax * 2;
-  score += Math.max(0, (likedClusters[career.cluster] || 0)) * 2;
-
-  const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 50 + Math.floor(Math.random() * 30);
+  let score = 0, maxScore = 0;
+  const tagVals = Object.values(likedTags).filter(v => v > 0);
+  const tagMax = tagVals.length ? Math.max(...tagVals) : 1;
+  career.tags.forEach(t => { maxScore += tagMax; score += Math.max(0, likedTags[t] || 0); });
+  const clusterVals = Object.values(likedClusters).filter(v => v > 0);
+  const clMax = clusterVals.length ? Math.max(...clusterVals) : 1;
+  maxScore += clMax * 2;
+  score += Math.max(0, likedClusters[career.cluster] || 0) * 2;
+  const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 60 + Math.floor(Math.random() * 25);
   return Math.min(99, Math.max(60, pct));
 }
 
-const rankLabels = ['🥇 Best Match', '🥈 Great Fit', '🥉 Good Match'];
-const rankClasses = ['rank-1', 'rank-2', 'rank-3'];
+const RANKS = ['🥇 Best Match', '🥈 Great Fit', '🥉 Good Match'];
+const RANK_CLS = ['rank-1', 'rank-2', 'rank-3'];
 
-function renderResults(recommendations) {
-  if (!recommendations || recommendations.length === 0) {
-    resultsContainer.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">🤔</div>
-        <h3>Not enough data</h3>
-        <p>Try swiping more cards!</p>
-      </div>`;
+function renderResults(recs) {
+  if (!recs || recs.length === 0) {
+    document.getElementById('results-container').innerHTML = `<div class="empty-state"><div class="empty-state-icon">🤔</div><h3>Not enough data</h3><p>Try swiping more cards!</p></div>`;
     return;
   }
 
-  resultsContainer.innerHTML = recommendations.map((career, i) => {
-    const matchPct = computeMatchScore(career);
-    const pathHTML = (career.studyPath || []).slice(0, 4).map((step, j, arr) => `
-      <span class="path-step">${step}</span>${j < arr.length - 1 ? '<span class="path-arrow">→</span>' : ''}
-    `).join('');
-
-    const linkedinHTML = (career.linkedinProfiles || []).map(p => `
+  document.getElementById('results-container').innerHTML = recs.map((career, i) => {
+    const pct = computeMatchPct(career);
+    const path = (career.studyPath || []).slice(0, 4).map((s, j, a) =>
+      `<span class="path-step">${s}</span>${j < a.length - 1 ? '<span class="path-arrow">→</span>' : ''}`
+    ).join('');
+    const tags = (career.tags || []).map(t => `<span class="result-tag">${t}</span>`).join('');
+    const linkedin = (career.linkedinProfiles || []).map(p => `
       <a class="linkedin-profile" href="${p.url}" target="_blank" rel="noopener">
-        <img class="linkedin-avatar" src="${p.avatar}" alt="${p.name}" onerror="this.src='https://i.pravatar.cc/150?img=${Math.floor(Math.random()*40)}'"/>
+        <img class="linkedin-avatar" src="${p.avatar}" onerror="this.style.display='none'" />
         <div class="linkedin-info">
           <div class="linkedin-name">${p.name}</div>
           <div class="linkedin-role">${p.title}</div>
         </div>
         <div class="linkedin-icon">in</div>
-      </a>
-    `).join('');
-
-    const tagHTML = (career.tags || []).map(t => `<span class="result-tag">${t}</span>`).join('');
+      </a>`).join('');
 
     return `
       <div class="result-card">
         <div class="result-card-hero">
-          <img class="result-card-img" 
-               src="${career.imageUrl}" 
-               alt="${career.title}"
-               onerror="this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80'"/>
+          <img class="result-card-img" src="${career.imageUrl}" onerror="this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=80'" />
           <div class="result-card-hero-overlay"></div>
-          <div class="result-rank ${rankClasses[i]}">${rankLabels[i]}</div>
-          <div class="match-score">${matchPct}%<span> match</span></div>
+          <div class="result-rank ${RANK_CLS[i]}">${RANKS[i]}</div>
+          <div class="match-score">${pct}%<span> match</span></div>
         </div>
         <div class="result-card-body">
           <div class="result-card-top">
             <h2 class="result-title">${career.title}</h2>
-            <span class="result-salary-badge">${career.avgSalary || 'Market Rate'}</span>
+            <span class="result-salary-badge">${career.avgSalary || 'Competitive'}</span>
           </div>
-          
           <div class="result-growth">
             <span class="growth-badge">↑ ${career.growth || '20%'}</span>
             <span class="growth-label">job market growth</span>
           </div>
-
           <p class="result-description">${career.description}</p>
-
-          <div class="result-tags">${tagHTML}</div>
-
+          <div class="result-tags">${tags}</div>
           <div class="result-path-label">🗺️ Learning Roadmap</div>
-          <div class="result-path">${pathHTML}</div>
-
+          <div class="result-path">${path}</div>
           <div class="linkedin-section">
             <div class="linkedin-label">👥 Pros in this field</div>
-            <div class="linkedin-profiles">${linkedinHTML}</div>
+            <div class="linkedin-profiles">${linkedin}</div>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
   }).join('');
 }
 
-// ==========================================
-//  RESTART
-// ==========================================
+// Restart quiz
 document.getElementById('restart-btn').addEventListener('click', () => {
   swipeHistory = [];
-  careers = shuffleArray([...careers]);
-  cardQueue = [...careers];
-  currentIndex = 0;
-
-  resultsPage.classList.add('hidden');
-  app.classList.remove('hidden');
-
-  swipeCountEl.textContent = '0';
-  renderCards();
-  attachDragListeners();
+  beginQuiz();
 });
 
 // ==========================================
-//  UTILS
+//  TOAST NOTIFICATIONS
 // ==========================================
-function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+function showToast(msg) {
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.id = 'toast';
+  t.textContent = msg;
+  t.style.cssText = `
+    position:fixed;top:1.5rem;left:50%;transform:translateX(-50%);
+    background:rgba(30,30,40,0.95);color:#fff;padding:0.7rem 1.4rem;
+    border-radius:99px;font-size:0.85rem;font-weight:500;z-index:9999;
+    border:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(10px);
+    animation:fadeInDown 0.3s ease;white-space:nowrap;
+    box-shadow:0 4px 20px rgba(0,0,0,0.4);
+  `;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2500);
 }
 
 // ==========================================
-//  START
+//  FALLBACK CAREER DATA (if server is down)
 // ==========================================
-init();
+function getFallbackCareers() {
+  return [
+    { _id:'1', title:'AI/ML Engineer', description:'Build intelligent systems that learn from data.', tags:['Python','TensorFlow','Deep Learning','Math'], cluster:'Technology', studyPath:['Python','Statistics','ML Fundamentals','Deep Learning','MLOps'], imageUrl:'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=800&q=80', avgSalary:'₹18-45 LPA', growth:'40%', linkedinProfiles:[{name:'Andrew Ng',title:'AI Pioneer & Coursera Co-founder',url:'https://www.linkedin.com/in/andrewyng/',avatar:'https://i.pravatar.cc/150?img=1'},{name:'Andrej Karpathy',title:'Ex-Tesla AI Director',url:'https://www.linkedin.com/in/andrej-karpathy-9a650716/',avatar:'https://i.pravatar.cc/150?img=2'}] },
+    { _id:'2', title:'Product Manager', description:'Own the vision and bridge business, design, and engineering.', tags:['Strategy','Leadership','Analytics','UX'], cluster:'Business', studyPath:['Business Basics','UX Research','Agile','Data Analytics','Product Strategy'], imageUrl:'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80', avgSalary:'₹15-40 LPA', growth:'25%', linkedinProfiles:[{name:'Shreyas Doshi',title:'Ex-PM at Stripe, Twitter, Google',url:'https://www.linkedin.com/in/shreyasdoshi/',avatar:'https://i.pravatar.cc/150?img=4'}] },
+    { _id:'3', title:'Full-Stack Developer', description:'Build complete web applications from database to UI.', tags:['React','Node.js','Databases','APIs'], cluster:'Technology', studyPath:['HTML/CSS/JS','React','Node.js','Databases','Cloud'], imageUrl:'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&q=80', avgSalary:'₹8-30 LPA', growth:'22%', linkedinProfiles:[{name:'Dan Abramov',title:'React Core Team at Meta',url:'https://www.linkedin.com/in/dan-abramov/',avatar:'https://i.pravatar.cc/150?img=7'}] },
+    { _id:'4', title:'UX/UI Designer', description:'Craft experiences that feel magical.', tags:['Figma','Prototyping','Research','Psychology'], cluster:'Design', studyPath:['Design Principles','Figma','UX Research','Prototyping','Design Systems'], imageUrl:'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800&q=80', avgSalary:'₹6-25 LPA', growth:'20%', linkedinProfiles:[{name:'Julie Zhuo',title:'Ex-VP Design at Meta',url:'https://www.linkedin.com/in/juliezhuo/',avatar:'https://i.pravatar.cc/150?img=10'}] },
+    { _id:'5', title:'Cybersecurity Analyst', description:'Be the digital guardian. Hunt threats, protect systems.', tags:['Networking','Ethical Hacking','Firewalls','SIEM'], cluster:'Technology', studyPath:['Networking','Linux','Security+','Ethical Hacking','SOC'], imageUrl:'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&q=80', avgSalary:'₹10-35 LPA', growth:'33%', linkedinProfiles:[{name:'Troy Hunt',title:'Security Researcher & HaveIBeenPwned',url:'https://www.linkedin.com/in/troyhunt/',avatar:'https://i.pravatar.cc/150?img=15'}] },
+    { _id:'6', title:'Data Scientist', description:'Uncover hidden patterns in massive datasets.', tags:['Python','Statistics','SQL','Visualization'], cluster:'Technology', studyPath:['Statistics','Python','SQL','ML Basics','Data Storytelling'], imageUrl:'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80', avgSalary:'₹12-40 LPA', growth:'28%', linkedinProfiles:[{name:'Cassie Kozyrkov',title:'Chief Decision Scientist at Google',url:'https://www.linkedin.com/in/cassiekozyrkov/',avatar:'https://i.pravatar.cc/150?img=18'}] },
+    { _id:'7', title:'Digital Marketer', description:'Grow brands in the digital age.', tags:['SEO','Social Media','Analytics','Content'], cluster:'Marketing', studyPath:['Marketing Fundamentals','SEO/SEM','Social Media','Paid Ads','Analytics'], imageUrl:'https://images.unsplash.com/photo-1432888622747-4eb9a8efeb07?w=800&q=80', avgSalary:'₹5-20 LPA', growth:'18%', linkedinProfiles:[{name:'Neil Patel',title:'Digital Marketing Expert',url:'https://www.linkedin.com/in/neilkpatel/',avatar:'https://i.pravatar.cc/150?img=19'}] },
+    { _id:'8', title:'Cloud Architect', description:'Design the backbone of the internet.', tags:['AWS','Azure','DevOps','Kubernetes'], cluster:'Technology', studyPath:['Linux','Networking','AWS/Azure','DevOps','Kubernetes'], imageUrl:'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=800&q=80', avgSalary:'₹20-60 LPA', growth:'35%', linkedinProfiles:[{name:'Kelsey Hightower',title:'Principal Engineer at Google',url:'https://www.linkedin.com/in/kelsey-hightower-b08b6b36/',avatar:'https://i.pravatar.cc/150?img=23'}] },
+    { _id:'9', title:'Investment Banker', description:'Navigate high-stakes financial deals.', tags:['Finance','Excel','Valuation','M&A'], cluster:'Finance', studyPath:['Financial Modeling','Accounting','Valuation','Excel/VBA','CFA'], imageUrl:'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80', avgSalary:'₹12-50 LPA', growth:'15%', linkedinProfiles:[{name:'Rosenbaum & Pearl',title:'Authors of IB Bible',url:'https://www.linkedin.com/in/joshuarosenbaum/',avatar:'https://i.pravatar.cc/150?img=27'}] },
+    { _id:'10', title:'Biotech Researcher', description:'Rewrite the code of life.', tags:['Biology','Lab Skills','CRISPR','Research'], cluster:'Science', studyPath:['Molecular Biology','Biochemistry','Lab Techniques','Bioinformatics','Research'], imageUrl:'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=800&q=80', avgSalary:'₹8-30 LPA', growth:'20%', linkedinProfiles:[{name:'Jennifer Doudna',title:'Nobel Prize Winner - CRISPR Pioneer',url:'https://www.linkedin.com/in/jennifer-doudna/',avatar:'https://i.pravatar.cc/150?img=28'}] },
+    { _id:'11', title:'Game Developer', description:'Build worlds from scratch.', tags:['Unity','C#','Game Design','3D'], cluster:'Technology', studyPath:['C# Basics','Unity','Game Design','3D Modeling','Publishing'], imageUrl:'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=800&q=80', avgSalary:'₹6-25 LPA', growth:'16%', linkedinProfiles:[{name:'Tim Sweeney',title:'CEO of Epic Games',url:'https://www.linkedin.com/in/tim-sweeney-epic/',avatar:'https://i.pravatar.cc/150?img=32'}] },
+    { _id:'12', title:'Entrepreneur', description:'Build something from nothing.', tags:['Vision','Leadership','Fundraising','Hustle'], cluster:'Business', studyPath:['Business Basics','Lean Startup','Fundraising','Product Dev','Marketing'], imageUrl:'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&q=80', avgSalary:'Unlimited', growth:'Self-determined', linkedinProfiles:[{name:'Kunal Shah',title:'Founder of CRED',url:'https://www.linkedin.com/in/kunalshah1/',avatar:'https://i.pravatar.cc/150?img=36'}] }
+  ];
+}
 
 // ==========================================
-//  PWA — Register Service Worker
+//  PWA — Service Worker
 // ==========================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('SwipePath SW registered:', reg.scope))
-      .catch(err => console.log('SW registration failed:', err));
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 
-  // Show install prompt on Android
   let deferredPrompt;
-  window.addEventListener('beforeinstallprompt', (e) => {
+  window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
-
-    // Show a subtle install banner after 3 swipes
     setTimeout(() => {
-      if (deferredPrompt) showInstallBanner(deferredPrompt);
-    }, 5000);
+      if (deferredPrompt && currentUser) showInstallBanner(deferredPrompt);
+    }, 8000);
   });
 }
 
 function showInstallBanner(prompt) {
-  const banner = document.createElement('div');
-  banner.id = 'install-banner';
-  banner.innerHTML = `
-    <div style="
-      position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
-      background:linear-gradient(135deg,#7c3aed,#06b6d4);
-      color:#fff; padding:0.7rem 1.2rem;
-      border-radius:99px; z-index:999;
-      display:flex; align-items:center; gap:0.6rem;
-      font-family:'Syne',sans-serif; font-weight:600; font-size:0.85rem;
-      box-shadow:0 8px 30px rgba(124,58,237,0.5);
-      cursor:pointer; white-space:nowrap;
-      animation: fadeInUp 0.4s ease both;
-    ">
-      📲 Install SwipePath App
-      <span style="opacity:0.7;font-size:0.75rem;font-weight:400">Free</span>
-    </div>
-  `;
-  banner.querySelector('div').addEventListener('click', async () => {
-    prompt.prompt();
-    const { outcome } = await prompt.userChoice;
-    banner.remove();
-  });
-  document.body.appendChild(banner);
-  setTimeout(() => banner.remove(), 8000);
+  const b = document.createElement('div');
+  b.innerHTML = `<div style="position:fixed;bottom:calc(var(--nav-h) + 16px);left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;padding:0.65rem 1.2rem;border-radius:99px;z-index:999;display:flex;align-items:center;gap:0.5rem;font-family:'Syne',sans-serif;font-weight:700;font-size:0.82rem;box-shadow:0 8px 30px rgba(124,58,237,0.5);cursor:pointer;white-space:nowrap;animation:fadeInUp 0.4s ease both;">📲 Install SwipePath App</div>`;
+  b.querySelector('div').onclick = async () => { prompt.prompt(); b.remove(); };
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 10000);
 }
