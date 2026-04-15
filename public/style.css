@@ -69,8 +69,15 @@ html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-fam
   max-width: 100vw;   /* ✅ ADD */
 }
 body {
-  position: relative;
+  overflow-x: hidden;
+  position: fixed;
+  width: 100%;
 }
+
+* {
+  max-width: 100vw;
+}
+
 /* ── AUTH ── */
 .auth-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem 1.5rem;overflow-y:auto;}
 .auth-logo{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;}
@@ -120,8 +127,16 @@ body {
 .onboarding-footer .btn-outline{flex:0 0 auto;}
 
 /* ── MAIN APP ── */
-#main-app{display:flex;flex-direction:column;position:fixed;inset:0;max-width:430px;margin:0 auto;}
-.tab-content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:var(--nav-h);}
+#main-app {
+  display:flex;
+  flex-direction:column;
+  position:fixed;
+  inset:0;
+  width:100%;
+  max-width:430px;
+  left:50%;
+  transform:translateX(-50%);
+}.tab-content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:var(--nav-h);}
 .tab-content.hidden{display:none!important;}
 .tab-content.active{display:block;}
 
@@ -159,7 +174,9 @@ body {
 .spotlight-card-cluster{font-size:0.65rem;color:rgba(255,255,255,0.65);margin-bottom:0.15rem;}
 
 /* ── BOTTOM NAV ── */
-.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;height:var(--nav-h);background:rgba(13,13,20,0.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-around;padding:0 0.5rem;z-index:50;}
+.bottom-nav{position:fixed;bottom:0;  left:0;
+  right:0;
+  margin:0 auto;width:100%;max-width:430px;height:var(--nav-h);background:rgba(13,13,20,0.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-around;padding:0 0.5rem;z-index:50;}
 .nav-btn{display:flex;flex-direction:column;align-items:center;gap:0.25rem;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0.5rem 0.75rem;border-radius:14px;transition:all 0.2s;min-width:56px;}
 .nav-btn.active{color:var(--accent);}
 .nav-btn.active .nav-icon{transform:scale(1.15);}
