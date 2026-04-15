@@ -699,8 +699,7 @@ function renderResults(recs) {
     ).join('');
     const tags = (career.tags || []).map(t => `<span class="result-tag">${t}</span>`).join('');
     const linkedin = (career.linkedinProfiles || []).map(p => `
-      <a class="linkedin-profile" href="${p.url}" target="_blank" rel="noopener noreferrer">
-        <img class="linkedin-avatar" src="${p.avatar}"
+      <a class="linkedin-profile" href="${p.url}" onclick="openExternalLink(event, '${p.url}')">        <img class="linkedin-avatar" src="${p.avatar}"
              onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=7c3aed&color=fff&size=40'" />
         <div class="linkedin-info">
           <div class="linkedin-name">${p.name}</div>
@@ -805,3 +804,14 @@ function showInstallBanner(prompt) {
   document.body.appendChild(b);
   setTimeout(() => b.remove(), 10000);
 }
+
+function openExternalLink(e, url) {
+  e.preventDefault();
+
+  // For PWA / mobile
+  if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
+    window.open(url, '_blank');
+  } else {
+    window.location.href = url;
+  }
+} 
