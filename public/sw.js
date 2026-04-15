@@ -35,6 +35,14 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
+  // ❌ Skip external links (VERY IMPORTANT)
+  if (url.origin !== self.location.origin) {
+    return; // let browser handle it
+  }
+
+  // your existing caching logic below
+});
+
   // For API calls: network only (no caching)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(event.request).catch(() =>

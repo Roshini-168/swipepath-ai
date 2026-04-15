@@ -805,13 +805,10 @@ function showInstallBanner(prompt) {
   setTimeout(() => b.remove(), 10000);
 }
 
+
 function openExternalLink(e, url) {
   e.preventDefault();
 
-  // For PWA / mobile
-  if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
-    window.open(url, '_blank');
-  } else {
-    window.location.href = url;
-  }
-} 
+  // FORCE open outside PWA
+  window.open(url, '_system' in window ? '_system' : '_blank');
+}
