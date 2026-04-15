@@ -52,8 +52,8 @@
         <div class="input-group"><span class="input-icon">🔒</span><input type="password" id="signin-password" placeholder="Password" /></div>
         <button class="btn-primary" onclick="handleSignIn()">Sign In →</button>
         <div class="auth-divider"><span>or</span></div>
-        <button class="btn-google" onclick="handleGuestLogin()">
-          👤 Continue as Guest
+        <button class="btn-guest" onclick="handleGuestLogin()">
+          👤 Continue as Guest 
         </button>
       </div>
       <div id="signup-form" class="auth-form hidden">
@@ -62,8 +62,8 @@
         <div class="input-group"><span class="input-icon">🔒</span><input type="password" id="signup-password" placeholder="Create password" /></div>
         <button class="btn-primary" onclick="handleSignUp()">Create Account →</button>
         <div class="auth-divider"><span>or</span></div>
-        <button class="btn-google" onclick="handleGuestLogin()">
-          👤 Continue as Guest
+        <button class="btn-guest" onclick="handleGuestLogin()">
+          👤 Continue as Guest 
         </button>
       </div>
     </div>
@@ -274,6 +274,7 @@
 <!-- INSTRUCTIONS MODAL -->
 <div class="modal-overlay hidden" id="instructions-modal">
   <div class="modal instructions-modal">
+    <button class="modal-close" onclick="closeInstructions()" style="position:absolute;top:1rem;right:1rem">✕</button>
     <div class="modal-logo">⚡ SwipePath AI</div>
     <h2>How to Swipe</h2>
     <div class="modal-steps">
