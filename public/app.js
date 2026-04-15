@@ -699,7 +699,10 @@ function renderResults(recs) {
     ).join('');
     const tags = (career.tags || []).map(t => `<span class="result-tag">${t}</span>`).join('');
     const linkedin = (career.linkedinProfiles || []).map(p => `
-      <a class="linkedin-profile" href="${p.url}" onclick="openExternalLink(event, '${p.url}')">        <img class="linkedin-avatar" src="${p.avatar}"
+      
+   <a href="${p.url}" target="_blank" rel="noopener noreferrer"
+      onclick="openExternalLink(event, '${p.url}')">      
+      <img class="linkedin-avatar" src="${p.avatar}"
              onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=7c3aed&color=fff&size=40'" />
         <div class="linkedin-info">
           <div class="linkedin-name">${p.name}</div>
@@ -806,9 +809,18 @@ function showInstallBanner(prompt) {
 }
 
 
+
 function openExternalLink(e, url) {
   e.preventDefault();
 
-  // FORCE open outside PWA
-  window.open(url, '_system' in window ? '_system' : '_blank');
-}
+  // Try opening in LinkedIn app (deep link)
+  const appUrl = url.replace('https://www.linkedin.com/', 'linkedin://');
+
+  // First try app
+  window.location.href = appUrl;
+
+  // Fallback to browser after delay
+  setTimeout(() => {
+    window.open(url, '_blank');
+  }, 800);
+} 

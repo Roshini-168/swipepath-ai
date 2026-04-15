@@ -42,6 +42,9 @@ self.addEventListener('fetch', event => {
 
   // your existing caching logic below
 });
+if (event.request.url.includes('linkedin.com')) {
+  return; // let browser handle it
+}
 
   // For API calls: network only (no caching)
   if (url.pathname.startsWith('/api/')) {
