@@ -34,9 +34,4 @@ Shows top 3 matched careers with rank badges (🥇🥈🥉), an AI match percent
 10. History, Profile, Bottom Nav
 A bottom navigation bar (Home / History / ⚡Quiz / Results / Profile) gives access to past quiz attempts (stored with personality + top matches), full user profile with onboarding data, and sign-out.
 
-Technical Architecture
-Frontend — Vanilla JavaScript (no framework), CSS custom properties, CSS animations. Mobile-first with fixed-position screens, overflow: hidden containment, and overscroll-behavior: none to prevent horizontal scroll on phones. All swipe logic is built from scratch using native Touch and Mouse events.
-Backend — Node.js + Express REST API. Serves 20 career objects with tags, clusters, interest mappings, study paths, salary data, and LinkedIn profiles. The /api/careers endpoint accepts an ?interests= query parameter and returns careers sorted by the user's onboarding interests first. The /api/recommendations endpoint runs server-side scoring as a fallback, though the primary logic now runs client-side for reliability.
-Data Layer — No database. All user data (profile, quiz history, sessions) is stored in localStorage. Career data lives in-memory on the server with a full client-side fallback so the app works even if the server is unreachable.
-PWA — A manifest.json and service worker (sw.js) make the app installable on Android and iPhone home screens. The service worker caches static assets for offline use, never intercepts external origins (fixing a LinkedIn link bug), and handles API calls with a graceful fallback.
-Smart Quiz Rotation — Uses a seeded shuffle algorithm (seededShuffle(arr, seed)) where the seed is derived from Date.now() XOR (quizAttempt × largeNumber), guaranteeing a different career order every session.
+
